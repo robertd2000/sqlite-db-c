@@ -20,8 +20,6 @@ InputBuffer *new_input_buffer() {
 
 void print_prompt() { printf("db > "); }
 
-ssize_t getline(char **lineptr, size_t *n, FILE *stream);
-
 void read_input(InputBuffer *input_buffer) {
   ssize_t bytes_read =
       getline(&(input_buffer->buffer), &(input_buffer->buffer_length), stdin);
