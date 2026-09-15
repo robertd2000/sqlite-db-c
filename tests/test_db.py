@@ -1,9 +1,9 @@
 import subprocess
 
 
-def run_script(commands: list[str]) -> list[str]:
+def run_script(commands: list[str], db_filename: str) -> list[str]:
     result = subprocess.run(
-        ["./db"],
+        ["./db", db_filename],
         input="\n".join(commands) + "\n",
         text=True,
         capture_output=True,
@@ -13,13 +13,16 @@ def run_script(commands: list[str]) -> list[str]:
     return result.stdout.splitlines()
 
 
-def test_inserts_and_retrieves_a_row():
+def test_inserts_and_retrieves_a_row(tmp_path):
+    db_file = tmp_path / "test.db"
+
     result = run_script(
         [
             "insert 1 user1 person1@example.com",
             "select",
             ".exit",
-        ]
+        ],
+        str(db_file),
     )
 
     assert result == [
@@ -30,17 +33,21 @@ def test_inserts_and_retrieves_a_row():
     ]
 
 
-def test_prints_error_message_when_table_is_full():
+def test_prints_error_message_when_table_is_full(tmp_path):
+    db_file = tmp_path / "test.db"
+
     script = [f"insert {i} user{i} person{i}@example.com" for i in range(1, 1402)]
 
     script.append(".exit")
 
-    result = run_script(script)
+    result = run_script(script, str(db_file))
 
     assert result[-2] == "db > Error: Table full."
 
 
-def test_allows_inserting_strings_that_are_the_maximum_length():
+def test_allows_inserting_strings_that_are_the_maximum_length(tmp_path):
+    db_file = tmp_path / "test.db"
+
     long_username = "a" * 32
     long_email = "a" * 255
 
@@ -50,7 +57,7 @@ def test_allows_inserting_strings_that_are_the_maximum_length():
         ".exit",
     ]
 
-    result = run_script(script)
+    result = run_script(script, str(db_file))
 
     assert result == [
         "db > Executed.",
@@ -60,7 +67,9 @@ def test_allows_inserting_strings_that_are_the_maximum_length():
     ]
 
 
-def test_prints_error_message_if_strings_are_too_long():
+def test_prints_error_message_if_strings_are_too_long(tmp_path):
+    db_file = tmp_path / "test.db"
+
     long_username = "a" * 33
     long_email = "a" * 256
 
@@ -70,7 +79,7 @@ def test_prints_error_message_if_strings_are_too_long():
         ".exit",
     ]
 
-    result = run_script(script)
+    result = run_script(script, str(db_file))
 
     assert result == [
         "db > String is too long.",
@@ -79,17 +88,53 @@ def test_prints_error_message_if_strings_are_too_long():
     ]
 
 
-def test_prints_an_error_message_if_id_is_negative():
+def test_prints_an_error_message_if_id_is_negative(tmp_path):
+    db_file = tmp_path / "test.db"
+
     script = [
         "insert -1 cstack foo@bar.com",
         "select",
         ".exit",
     ]
 
-    result = run_script(script)
+    result = run_script(script, str(db_file))
 
     assert result == [
         "db > ID must be positive.",
         "db > Executed.",
+        "db > ",
+    ]
+
+
+def test_keeps_data_after_closing_connection(tmp_path):
+    db_file = tmp_path / "mydb.db"
+
+    result1 = run_script(
+        [
+            "insert 1 cstack foo@bar.com",
+            "insert 2 voltorb volty@example.com",
+            ".exit",
+        ],
+        str(db_file),
+    )
+
+    assert result1 == [
+        "db > Executed.",
+        "db > Executed.",
+        "db > ",
+    ]
+
+    result2 = run_script(
+        [
+            "select",
+            ".exit",
+        ],
+        str(db_file),
+    )
+
+    assert result2 == [
+        "db > (1, cstack, foo@bar.com)",
+        "(2, voltorb, volty@example.com)",
+        "Executed.",
         "db > ",
     ]
