@@ -186,3 +186,24 @@ def test_prints_constants(tmp_path):
         "LEAF_NODE_MAX_CELLS: 13",
         "db > ",
     ]
+
+
+def test_prints_an_error_message_if_there_is_a_duplicate_id(tmp_path):
+    db_file = tmp_path / "mydb.db"
+
+    script = [
+        "insert 1 user1 person1@example.com",
+        "insert 1 user1 person1@example.com",
+        "select",
+        ".exit",
+    ]
+
+    result = run_script(script, str(db_file))
+
+    assert result == [
+        "db > Executed.",
+        "db > Error: Duplicate key.",
+        "db > (1, user1, person1@example.com)",
+        "Executed.",
+        "db > ",
+    ]
