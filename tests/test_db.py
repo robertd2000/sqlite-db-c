@@ -1,13 +1,17 @@
 import subprocess
 
 
-def run_script(commands: list[str], db_filename: str) -> list[str]:
+def run_script(
+    commands: list[str],
+    db_filename: str,
+    check: bool = True,
+) -> list[str]:
     result = subprocess.run(
         ["./db", db_filename],
         input="\n".join(commands) + "\n",
         text=True,
         capture_output=True,
-        check=True,
+        check=check,
     )
 
     return result.stdout.splitlines()
@@ -33,31 +37,20 @@ def test_inserts_and_retrieves_a_row(tmp_path):
     ]
 
 
-def test_prints_error_message_when_table_is_full(tmp_path):
-    db_file = tmp_path / "test.db"
-
-    script = [f"insert {i} user{i} person{i}@example.com" for i in range(1, 1402)]
-
-    script.append(".exit")
-
-    result = run_script(script, str(db_file))
-
-    assert result[-2] == "db > Error: Table full."
-
-
 def test_allows_inserting_strings_that_are_the_maximum_length(tmp_path):
     db_file = tmp_path / "test.db"
 
     long_username = "a" * 32
     long_email = "a" * 255
 
-    script = [
-        f"insert 1 {long_username} {long_email}",
-        "select",
-        ".exit",
-    ]
-
-    result = run_script(script, str(db_file))
+    result = run_script(
+        [
+            f"insert 1 {long_username} {long_email}",
+            "select",
+            ".exit",
+        ],
+        str(db_file),
+    )
 
     assert result == [
         "db > Executed.",
@@ -73,13 +66,14 @@ def test_prints_error_message_if_strings_are_too_long(tmp_path):
     long_username = "a" * 33
     long_email = "a" * 256
 
-    script = [
-        f"insert 1 {long_username} {long_email}",
-        "select",
-        ".exit",
-    ]
-
-    result = run_script(script, str(db_file))
+    result = run_script(
+        [
+            f"insert 1 {long_username} {long_email}",
+            "select",
+            ".exit",
+        ],
+        str(db_file),
+    )
 
     assert result == [
         "db > String is too long.",
@@ -91,13 +85,14 @@ def test_prints_error_message_if_strings_are_too_long(tmp_path):
 def test_prints_an_error_message_if_id_is_negative(tmp_path):
     db_file = tmp_path / "test.db"
 
-    script = [
-        "insert -1 cstack foo@bar.com",
-        "select",
-        ".exit",
-    ]
-
-    result = run_script(script, str(db_file))
+    result = run_script(
+        [
+            "insert -1 cstack foo@bar.com",
+            "select",
+            ".exit",
+        ],
+        str(db_file),
+    )
 
     assert result == [
         "db > ID must be positive.",
@@ -141,40 +136,42 @@ def test_keeps_data_after_closing_connection(tmp_path):
 
 
 def test_allows_printing_out_the_structure_of_a_one_node_btree(tmp_path):
-    db_file = tmp_path / "mydb.db"
+    db_file = tmp_path / "test.db"
 
-    script = [
-        "insert 3 user3 person3@example.com",
-        "insert 1 user1 person1@example.com",
-        "insert 2 user2 person2@example.com",
-        ".btree",
-        ".exit",
-    ]
-
-    result = run_script(script, str(db_file))
+    result = run_script(
+        [
+            "insert 3 user3 person3@example.com",
+            "insert 1 user1 person1@example.com",
+            "insert 2 user2 person2@example.com",
+            ".btree",
+            ".exit",
+        ],
+        str(db_file),
+    )
 
     assert result == [
         "db > Executed.",
         "db > Executed.",
         "db > Executed.",
         "db > Tree:",
-        "leaf (size 3)",
-        "  - 0 : 1",
-        "  - 1 : 2",
-        "  - 2 : 3",
+        "- leaf (size 3)",
+        "  - 1",
+        "  - 2",
+        "  - 3",
         "db > ",
     ]
 
 
 def test_prints_constants(tmp_path):
-    db_file = tmp_path / "mydb.db"
+    db_file = tmp_path / "test.db"
 
-    script = [
-        ".constants",
-        ".exit",
-    ]
-
-    result = run_script(script, str(db_file))
+    result = run_script(
+        [
+            ".constants",
+            ".exit",
+        ],
+        str(db_file),
+    )
 
     assert result == [
         "db > Constants:",
@@ -189,16 +186,17 @@ def test_prints_constants(tmp_path):
 
 
 def test_prints_an_error_message_if_there_is_a_duplicate_id(tmp_path):
-    db_file = tmp_path / "mydb.db"
+    db_file = tmp_path / "test.db"
 
-    script = [
-        "insert 1 user1 person1@example.com",
-        "insert 1 user1 person1@example.com",
-        "select",
-        ".exit",
-    ]
-
-    result = run_script(script, str(db_file))
+    result = run_script(
+        [
+            "insert 1 user1 person1@example.com",
+            "insert 1 user1 person1@example.com",
+            "select",
+            ".exit",
+        ],
+        str(db_file),
+    )
 
     assert result == [
         "db > Executed.",
@@ -207,3 +205,56 @@ def test_prints_an_error_message_if_there_is_a_duplicate_id(tmp_path):
         "Executed.",
         "db > ",
     ]
+
+
+def test_allows_printing_out_the_structure_of_a_3_leaf_node_btree(tmp_path):
+    db_file = tmp_path / "test.db"
+
+    script = [
+        *[f"insert {i} user{i} person{i}@example.com" for i in range(1, 15)],
+        ".btree",
+        ".exit",
+    ]
+
+    result = run_script(script, str(db_file))
+
+    assert result == [
+        *["db > Executed."] * 14,
+        "db > Tree:",
+        "- internal (size 1)",
+        "  - leaf (size 7)",
+        "    - 1",
+        "    - 2",
+        "    - 3",
+        "    - 4",
+        "    - 5",
+        "    - 6",
+        "    - 7",
+        "  - key 7",
+        "  - leaf (size 7)",
+        "    - 8",
+        "    - 9",
+        "    - 10",
+        "    - 11",
+        "    - 12",
+        "    - 13",
+        "    - 14",
+        "db > ",
+    ]
+
+
+def test_insert_into_internal_node_is_not_implemented_yet(tmp_path):
+    db_file = tmp_path / "test.db"
+
+    script = [
+        *[f"insert {i} user{i} person{i}@example.com" for i in range(1, 15)],
+        "insert 15 user15 person15@example.com",
+    ]
+
+    result = run_script(
+        script,
+        str(db_file),
+        check=False,
+    )
+
+    assert result[-1] == "db > Need to implement searching an internal node"
