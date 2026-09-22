@@ -6,15 +6,44 @@ def run_script(
     db_filename: str,
     check: bool = True,
 ) -> list[str]:
-    result = subprocess.run(
+    process = subprocess.Popen(
         ["./db", db_filename],
-        input="\n".join(commands) + "\n",
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        capture_output=True,
-        check=check,
     )
 
-    return result.stdout.splitlines()
+    assert process.stdin is not None
+    assert process.stdout is not None
+    assert process.stderr is not None
+
+    for command in commands:
+        try:
+            process.stdin.write(command + "\n")
+            process.stdin.flush()
+        except BrokenPipeError:
+            break
+
+    try:
+        process.stdin.close()
+    except BrokenPipeError:
+        pass
+
+    stdout = process.stdout.read()
+    stderr = process.stderr.read()
+
+    process.wait()
+
+    if check and process.returncode != 0:
+        raise subprocess.CalledProcessError(
+            process.returncode,
+            process.args,
+            output=stdout,
+            stderr=stderr,
+        )
+
+    return stdout.splitlines()
 
 
 def test_inserts_and_retrieves_a_row(tmp_path):
@@ -186,7 +215,7 @@ def test_prints_constants(tmp_path):
 
 
 def test_prints_an_error_message_if_there_is_a_duplicate_id(tmp_path):
-    db_file = tmp_path / "test.db"
+    db_file = tmp_path / "mydb.db"
 
     result = run_script(
         [
@@ -243,18 +272,21 @@ def test_allows_printing_out_the_structure_of_a_3_leaf_node_btree(tmp_path):
     ]
 
 
-def test_insert_into_internal_node_is_not_implemented_yet(tmp_path):
+def test_insert_into_internal_node(tmp_path):
     db_file = tmp_path / "test.db"
 
     script = [
         *[f"insert {i} user{i} person{i}@example.com" for i in range(1, 15)],
         "insert 15 user15 person15@example.com",
+        ".exit",
     ]
 
     result = run_script(
         script,
         str(db_file),
-        check=False,
     )
 
-    assert result[-1] == "db > Need to implement searching an internal node"
+    assert result[-2:] == [
+        "db > Executed.",
+        "db > ",
+    ]
