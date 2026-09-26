@@ -402,6 +402,11 @@ uint32_t get_unused_page_num(Pager *pager) { return pager->num_pages; }
 
 uint32_t *node_parent(void *node) { return node + PARENT_POINTER_OFFSET; }
 
+void update_internal_node_key(void *node, uint32_t old_key, uint32_t new_key) {
+  uint32_t old_child_index = internal_node_find_child(node, old_key);
+  *internal_node_key(node, old_child_index) = new_key;
+}
+
 void create_new_root(Table *table, uint32_t right_child_page_num) {
   /*
   Handle splitting the root.
